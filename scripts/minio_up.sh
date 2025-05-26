@@ -1,0 +1,1 @@
+docker run -p 9000:9000 --name minio -v ~/minio/data:/data -e "MINIO_ROOT_USER=admin" -e "MINIO_ROOT_PASSWORD=password" minio/minio server /data
