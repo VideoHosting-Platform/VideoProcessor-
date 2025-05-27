@@ -3,6 +3,7 @@ module github.com/VideoHosting-Platform/VideoProcessor
 go 1.24.0
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/minio/minio-go/v7 v7.0.92
 	github.com/rabbitmq/amqp091-go v1.10.0
 )
@@ -12,7 +13,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/minio/crc64nvme v1.0.1 // indirect

@@ -4,27 +4,32 @@ import (
 	"log"
 
 	"github.com/VideoHosting-Platform/VideoProcessor/internal/app/queue"
+	"github.com/VideoHosting-Platform/VideoProcessor/internal/app/services"
+	"github.com/VideoHosting-Platform/VideoProcessor/internal/app/storage"
+	"github.com/VideoHosting-Platform/VideoProcessor/internal/app/task"
 )
 
 func main() {
-	// TODO Load configuration
-	// TODO Initialize logger
+	// 1 TODO Load configuration
 
-	// TODO Initialize video storage connection
-	// client := storage.NewMinioClient()
+	// 2 TODO Initialize logger
 
-	// storage.UploadVideo(client, "test1", "video1", "./video.mp4")
-	// storage.DownloadVideo(client, "test1", "video1", "./qwe.mp4")
-
-	// TODO Initialize queue connection
-	rabbit, err := queue.NewRabbitMQ()
+	// 3 Initialize queue connection
+	rabbit, err := queue.NewRabbitMQConsumer()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// TODO Run queue consumer
-	rabbit.Consume()
+	// 4 Initialize video storage connection
+	minioStorage := storage.NewMinioStorage()
 
-	// TODO Metrics and helth endpoints
+	// 5 Initialize processor
+	process := task.NewVideoProcess()
+
+	// 6 Run queue consumer
+	vs := services.NewVideoService(minioStorage, process)
+	rabbit.Consume(vs)
+
+	// 7 TODO Metrics and helth endpoints
 
 }

@@ -1,16 +1,22 @@
 package queue
 
 import (
-	"fmt"
+	"encoding/json"
+	"log"
 
+	"github.com/VideoHosting-Platform/VideoProcessor/internal/app/task"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
+
+type TaskHandler interface {
+	Execute(t task.VideoTask) error
+}
 
 type RabbitConsumer struct {
 	msgs <-chan amqp.Delivery
 }
 
-func NewRabbitMQ() (*RabbitConsumer, error) {
+func NewRabbitMQConsumer() (*RabbitConsumer, error) {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	if err != nil {
 		return nil, err
@@ -22,12 +28,12 @@ func NewRabbitMQ() (*RabbitConsumer, error) {
 	}
 
 	q, err := ch.QueueDeclare(
-		"test_queue", // name
-		false,        // durable
-		false,        // delete when unused
-		false,        // exclusive
-		false,        // no-wait
-		nil,          // arguments
+		"video_processing", // name
+		false,              // durable
+		false,              // delete when unused
+		false,              // exclusive
+		false,              // no-wait
+		nil,                // arguments
 	)
 
 	if err != nil {
@@ -53,13 +59,18 @@ func NewRabbitMQ() (*RabbitConsumer, error) {
 	}, nil
 }
 
-func (r *RabbitConsumer) Consume() {
+func (r *RabbitConsumer) Consume(handler TaskHandler) {
 	for msg := range r.msgs {
-		process(msg)
+		var vt task.VideoTask
+		err := json.Unmarshal(msg.Body, &vt)
+		if err != nil {
+			log.Printf("error ummarshal in consume: %v\n", err)
+		}
+		err = handler.Execute(vt)
+		if err != nil {
+			log.Printf("error handler in consume: %v\n", err)
+		}
+		// TODO: при ошибке не потвержать, а так же обработку лучше сделать.
 		msg.Ack(false)
 	}
-}
-
-func process(msg amqp.Delivery) {
-	fmt.Printf("Received a message: %s", msg.Body)
 }
