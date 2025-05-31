@@ -28,7 +28,7 @@ func main() {
 
 	// 6 Run queue consumer
 	vs := services.NewVideoService(minioStorage, process)
-	rabbit.Consume(vs)
+	rabbit.Run(vs)
 
 	// 7 TODO Metrics and helth endpoints
 

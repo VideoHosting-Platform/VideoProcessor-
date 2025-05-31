@@ -25,15 +25,15 @@ func NewVideoService(st storage.StorageProvider, p task.Processer) *VideoService
 
 }
 
-// Сервис выполняет 3 функции, загрузки, обработки, выгрузки.
-func (vs *VideoService) Execute(vt task.VideoTask) error {
+// Сервис выполняет 3 функции, загрузки, обработки, выгрузки видео.
+func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 
 	// localInputPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s_input.mp4", vt.VideoID.String()))
 
 	taskTempDir, err := os.MkdirTemp("", "video-process-")
 	if err != nil {
 		// TODO: Log error
-		return fmt.Errorf("failed to create temp dir for task %s: %w", vt.VideoID, err)
+		return "", fmt.Errorf("failed to create temp dir for task %s: %w", vt.VideoID, err)
 	}
 
 	defer os.RemoveAll(taskTempDir)
@@ -42,7 +42,7 @@ func (vs *VideoService) Execute(vt task.VideoTask) error {
 	localOutputPath := filepath.Join(taskTempDir, "processed_output") // processed dir
 
 	if err := os.MkdirAll(localOutputPath, 0755); err != nil {
-		return fmt.Errorf("failed to create output temp subdir for task %s: %w", vt.VideoID, err)
+		return "", fmt.Errorf("failed to create output temp subdir for task %s: %w", vt.VideoID, err)
 	}
 
 	// Загрузка
@@ -54,14 +54,14 @@ func (vs *VideoService) Execute(vt task.VideoTask) error {
 	err = vs.storage.Download(dowloadPath, localInputPath)
 	if err != nil {
 		fmt.Printf("error execute %v\n", err)
-		return err
+		return "", err
 	}
 
 	//Обработка
 	err = vs.Process(vt, localInputPath, localOutputPath)
 	if err != nil {
 		fmt.Printf("error process %v\n", err)
-		return err
+		return "", err
 	}
 
 	//Выгрузка
@@ -73,10 +73,10 @@ func (vs *VideoService) Execute(vt task.VideoTask) error {
 	// 2) Рекурсивно ходим по локальной папке LOCAL_DIR
 	err = vs.uploadAllFilesInDir(localOutputPath, uploadPrefix)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return uploadPrefix, nil
 
 }
 
