@@ -10,20 +10,20 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-const (
-	rabbitMQURL  = "amqp://guest:guest@localhost:5672/"
-	consumer_tag = "video_processing"
-	producer_tag = "db_upload"
-)
+type RabbitMQConsumerConfig struct {
+	RabbitMQURL  string `env:"RABBITMQ_URL"`
+	ConsumerName string `env:"RABBITMQ_CONSUMER_NAME"`
+	ProducerName string `env:"RABBITMQ_PRODUCER_NAME"`
+}
 
 type TaskHandler interface {
 	Execute(t task.VideoTask) (string, error)
 }
 
 type RabbitConsumer struct {
-	Conn        *amqp.Connection
-	consumerTag string // name
-	producerTag string
+	Conn         *amqp.Connection
+	consumerName string // name
+	producerName string
 }
 
 func failOnError(err error, msg string) {
@@ -33,8 +33,8 @@ func failOnError(err error, msg string) {
 	}
 }
 
-func NewRabbitMQConsumer() (*RabbitConsumer, error) {
-	conn, err := amqp.Dial(rabbitMQURL)
+func NewRabbitMQConsumer(cfg RabbitMQConsumerConfig) (*RabbitConsumer, error) {
+	conn, err := amqp.Dial(cfg.RabbitMQURL)
 
 	if err != nil {
 		return nil, err
@@ -73,8 +73,8 @@ func NewRabbitMQConsumer() (*RabbitConsumer, error) {
 	// }
 
 	return &RabbitConsumer{Conn: conn,
-		consumerTag: consumer_tag,
-		producerTag: producer_tag,
+		consumerName: cfg.ConsumerName,
+		producerName: cfg.ProducerName,
 	}, nil
 }
 
@@ -153,7 +153,7 @@ func (r *RabbitConsumer) publish(tag string, body []byte) error {
 
 func (r *RabbitConsumer) Run(handler TaskHandler) error {
 
-	consumChan, err := r.newConsumeChan(r.consumerTag)
+	consumChan, err := r.newConsumeChan(r.consumerName)
 
 	if err != nil {
 		return err
@@ -184,7 +184,7 @@ func (r *RabbitConsumer) Run(handler TaskHandler) error {
 			log.Printf("error marshal post %s", err)
 		}
 
-		err = r.publish(r.producerTag, body)
+		err = r.publish(r.producerName, body)
 		if err != nil {
 			log.Printf("error publish post %s", err)
 		}

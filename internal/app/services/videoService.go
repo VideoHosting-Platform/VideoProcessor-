@@ -2,8 +2,10 @@ package services
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/VideoHosting-Platform/VideoProcessor/internal/app/storage"
 	"github.com/VideoHosting-Platform/VideoProcessor/internal/app/task"
@@ -16,11 +18,11 @@ const (
 )
 
 type VideoService struct {
-	storage storage.StorageProvider
+	storage storage.StorageStreamProvider
 	task.Processer
 }
 
-func NewVideoService(st storage.StorageProvider, p task.Processer) *VideoService {
+func NewVideoService(st storage.StorageStreamProvider, p task.Processer) *VideoService {
 	return &VideoService{storage: st, Processer: p}
 
 }
@@ -38,7 +40,7 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 
 	defer os.RemoveAll(taskTempDir)
 
-	localInputPath := filepath.Join(taskTempDir, "input.mp4")         // dowloaded dir
+	// localInputPath := filepath.Join(taskTempDir, "input.mp4")         // dowloaded dir
 	localOutputPath := filepath.Join(taskTempDir, "processed_output") // processed dir
 
 	if err := os.MkdirAll(localOutputPath, 0755); err != nil {
@@ -51,14 +53,15 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 	// dowloadPath := filepath.Join(BUCKET_NAME, vt.VideoID.String()+".mp4")
 	dowloadPath := filepath.Join(BUCKET_NAME, vt.VideoID.String()+"")
 	fmt.Println("path ", dowloadPath)
-	err = vs.storage.Download(dowloadPath, localInputPath)
+	// err = vs.storage.Download(dowloadPath, localInputPath)
+	url, err := vs.storage.GetPresignedURL(dowloadPath, time.Second*60*60)
 	if err != nil {
 		fmt.Printf("error execute %v\n", err)
 		return "", err
 	}
 
 	//Обработка
-	err = vs.Process(vt, localInputPath, localOutputPath)
+	err = vs.Process(vt, url, localOutputPath)
 	if err != nil {
 		fmt.Printf("error process %v\n", err)
 		return "", err
@@ -98,8 +101,21 @@ func (vs *VideoService) uploadAllFilesInDir(sourceFolder string, remoteFolderPre
 		objectPath := filepath.ToSlash(filepath.Join(remoteFolderPrefix, relPath))
 
 		// Выгрузка видео в minio
-		if err := vs.storage.Upload(path, objectPath); err != nil {
+		// if err := vs.storage.Upload(path, objectPath); err != nil {
+		// 	return fmt.Errorf("upload %s failed: %w", path, err)
+		// }
+		writer, err := vs.storage.Upload(objectPath)
+		if err != nil {
 			return fmt.Errorf("upload %s failed: %w", path, err)
+		}
+		defer writer.Close()
+		file, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("open file %s failed: %w", path, err)
+		}
+		defer file.Close()
+		if _, err := io.Copy(writer, file); err != nil {
+			return fmt.Errorf("copy file %s to storage failed: %w", path, err)
 		}
 		fmt.Printf("+ uploaded %s → %s\n", path, objectPath)
 		return nil
