@@ -13,3 +13,10 @@
 {"video_id":"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11","user_id":123,"video_title":"My Awesome Video"}
 ```
 - после, если не было ошибок, в minIO должна появится папка с обработанными(обновить сайт иногда надо)
+
+
+## K8s
+VideoProcessor - микросервис, не нуждается в service в k8s, т.к. его не вызвывают другие поды.
+
+###  docker hub
+valery223344/video_processor:0.0.1

@@ -23,6 +23,8 @@ func Init(env Env) {
 		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	case EnvProd:
 		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	default:
+		panic("unknown environment: " + string(env))
 	}
 
 	slog.SetDefault(logger)
