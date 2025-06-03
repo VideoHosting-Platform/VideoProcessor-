@@ -47,10 +47,10 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 
 	// Загрузка
 
-	dowloadPath := filepath.Join(BUCKET_NAME, vt.VideoID.String())
-	url, err := vs.storage.GetPresignedURL(dowloadPath, EXPIRY_TIME)
+	downloadPath := filepath.Join(BUCKET_NAME, vt.VideoID.String())
+	url, err := vs.storage.GetPresignedURL(downloadPath, EXPIRY_TIME)
 	if err != nil {
-		return "", fmt.Errorf("failed to get presigned URL for %s: %w", dowloadPath, err)
+		return "", fmt.Errorf("failed to get presigned URL for %s: %w", downloadPath, err)
 	}
 
 	slog.Info("Downloading video", "videoID", vt.VideoID, "url", url)
