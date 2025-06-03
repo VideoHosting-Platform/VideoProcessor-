@@ -1,9 +1,10 @@
 package task
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -14,13 +15,6 @@ import (
 const MaxBitrateKbps = 5000 // Максимальный битрейт в кбит/с
 const AVC = "libx264"       // Кодек для видео
 const AAC = "aac"           // Кодек для аудио
-
-const (
-	MastePLName            = "master.m3u8"
-	VariantPlaylistPattern = "stream_%v.m3u8"   // Шаблон для плейлистов HLS
-	SegmentPattern         = "segment_%v_%d.ts" // Шаблон для сегментов HLS
-
-)
 
 type Processer interface {
 	Process(t VideoTask, videoURL string, outputDir string) error
@@ -47,16 +41,13 @@ func (vh *VideoProcess) Process(t VideoTask, videoURL string, outputDir string) 
 	// Получаем доступные качества видео
 	q, err := vh.checkAndGenerateQualities(videoURL)
 	if err != nil {
-		log.Println("Ошибка при проверке и генерации качеств:", err)
-		return fmt.Errorf("ошибка при проверке и генерации качеств: %w", err)
+		return fmt.Errorf("error get Qualities for video (Process): %w", err)
 	}
 
 	err = vh.generateHLS(videoURL, outputDir, q)
 	if err != nil {
-		log.Println("Ошибка при генерации HLS:", err)
-		return fmt.Errorf("ошибка при генерации HLS: %w", err)
+		return fmt.Errorf("error generate (Process) HLS: %w", err)
 	}
-	log.Printf("Видео %s успешно обработано и сохранено в директорию %s с качествами: %+v\n", t.VideoID, outputDir, q)
 	return nil
 }
 
@@ -68,7 +59,7 @@ func (vh *VideoProcess) checkAndGenerateQualities(videoURL string) ([]Quality, e
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить метаданные видео: %w", err)
 	}
-	log.Printf("Метаданные видео: %+v\n", meta)
+	slog.Debug("Метаданные видео", "height", meta.Height, "width", meta.Width, "bitrate", meta.SourceBitrate)
 
 	// Генерируем доступные качества на основе метаданных
 	qualities := vh.autoConfig(meta)
@@ -76,7 +67,7 @@ func (vh *VideoProcess) checkAndGenerateQualities(videoURL string) ([]Quality, e
 		return nil, fmt.Errorf("не удалось сгенерировать доступные качества для видео %s", videoURL)
 	}
 
-	log.Printf("Сгенерированные качества: %+v\n", qualities)
+	slog.Debug("Сгенерированные качества", "qualities", qualities)
 
 	return qualities, nil
 }
@@ -209,7 +200,7 @@ func (vh *VideoProcess) generateHLS(inputURL string, outputDir string, qualities
 	//   Сейчас аудио кодек и аудио_битрейт жестко прописаны.
 	n := len(qualities)
 	if n == 0 {
-		return fmt.Errorf("передан пустой срез qualities")
+		return fmt.Errorf("empty qualities slice")
 	}
 
 	var (
@@ -235,7 +226,8 @@ func (vh *VideoProcess) generateHLS(inputURL string, outputDir string, qualities
 		n,
 		strings.Join(audioLabels, ""),
 	)
-	fmt.Printf("filter_complex: %s\n", filterComplex)
+
+	slog.Debug("filter_complex", "value", filterComplex)
 
 	// Map
 	mapLabels := make([]string, n)
@@ -245,7 +237,7 @@ func (vh *VideoProcess) generateHLS(inputURL string, outputDir string, qualities
 	}
 	// mapLabels = append(mapLabels, "0:a")
 
-	fmt.Println("mapLabels:", mapLabels)
+	slog.Debug("mapLabels", "value", mapLabels)
 
 	// Формируем сами KwArgs:
 	args := ffmpeg_go.KwArgs{
@@ -257,7 +249,7 @@ func (vh *VideoProcess) generateHLS(inputURL string, outputDir string, qualities
 		"hls_playlist_type":    "vod",
 	}
 
-	fmt.Println("args:", args)
+	slog.Debug("args", "value", args)
 
 	for i, q := range qualities {
 		// Video кодек для каждого качества.
@@ -295,11 +287,24 @@ func (vh *VideoProcess) generateHLS(inputURL string, outputDir string, qualities
 		Output(
 			variantPlaylistPattern,
 			args,
-		).ErrorToStdOut()
-
+		).WithErrorOutput(&slogWriter{level: slog.LevelDebug}).
+		WithOutput(&slogWriter{level: slog.LevelDebug}).Silent(true)
 	if err := proc.Run(); err != nil {
 		return fmt.Errorf("ffmpeg execution failed: %w", err)
 	}
 
 	return nil
+}
+
+type slogWriter struct {
+	level slog.Level
+}
+
+// Write реализует интерфейс io.Writer
+func (w *slogWriter) Write(p []byte) (n int, err error) {
+	output := strings.TrimSpace(string(p))
+	if output != "" {
+		slog.Log(context.Background(), w.level, "ffmpeg", "output", output)
+	}
+	return len(p), nil
 }

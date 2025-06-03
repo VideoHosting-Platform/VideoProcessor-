@@ -7,8 +7,9 @@ import (
 )
 
 type Config struct {
-	MinIO    storage.MinioConfig          `envDefault:""`
-	RabbitMQ queue.RabbitMQConsumerConfig `envDefault:""`
+	Environment string                       `env:"APP_ENV" envDefault:"local"`
+	MinIO       storage.MinioConfig          `envDefault:""`
+	RabbitMQ    queue.RabbitMQConsumerConfig `envDefault:""`
 }
 
 func MustLoadConfig() Config {

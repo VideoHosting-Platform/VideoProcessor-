@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 
 	"github.com/VideoHosting-Platform/VideoProcessor/internal/app/task"
 
@@ -37,40 +38,8 @@ func NewRabbitMQConsumer(cfg RabbitMQConsumerConfig) (*RabbitConsumer, error) {
 	conn, err := amqp.Dial(cfg.RabbitMQURL)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
 	}
-	// ch, err := conn.Channel()
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// q, err := ch.QueueDeclare(
-	// 	"video_processing", // name
-	// 	false,              // durable
-	// 	false,              // delete when unused
-	// 	false,              // exclusive
-	// 	false,              // no-wait
-	// 	nil,                // arguments
-	// )
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// msgs, err := ch.Consume(
-	// 	q.Name,
-	// 	"",
-	// 	false,
-	// 	false,
-	// 	false,
-	// 	false,
-	// 	nil,
-	// )
-
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	return &RabbitConsumer{Conn: conn,
 		consumerName: cfg.ConsumerName,
@@ -81,7 +50,7 @@ func NewRabbitMQConsumer(cfg RabbitMQConsumerConfig) (*RabbitConsumer, error) {
 func (r *RabbitConsumer) newConsumeChan(tag string) (<-chan amqp.Delivery, error) {
 	ch, err := r.Conn.Channel()
 	if err != nil {
-		return nil, fmt.Errorf("create chan for consene %v", err)
+		return nil, fmt.Errorf("failed create channel (Consumer) %w", err)
 	}
 
 	q, err := ch.QueueDeclare(
@@ -94,7 +63,7 @@ func (r *RabbitConsumer) newConsumeChan(tag string) (<-chan amqp.Delivery, error
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("queue deckareted error: %v", err)
+		return nil, fmt.Errorf("queue deckareted failed: %w", err)
 	}
 
 	msgs, err := ch.Consume(
@@ -107,21 +76,21 @@ func (r *RabbitConsumer) newConsumeChan(tag string) (<-chan amqp.Delivery, error
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("msgs get error: %v", err)
+		return nil, fmt.Errorf("failed get queued dilivery (Consumer) %w", err)
 	}
 
 	return msgs, nil
 
 }
 
-func (r *RabbitConsumer) publish(tag string, body []byte) error {
+func (r *RabbitConsumer) publish(name string, body []byte) error {
 	ch, err := r.Conn.Channel()
 	if err != nil {
-		return fmt.Errorf("create chan for consene %v", err)
+		return fmt.Errorf("failed create channel (Producer) %w", err)
 	}
 
 	q, err := ch.QueueDeclare(
-		tag,
+		name,
 		false, // durable
 		false, // delete when unused
 		false, // exclusive
@@ -130,7 +99,7 @@ func (r *RabbitConsumer) publish(tag string, body []byte) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("queue deckareted error: %v", err)
+		return fmt.Errorf("queue deckareted error (Producer): %w", err)
 	}
 
 	err = ch.Publish(
@@ -144,7 +113,7 @@ func (r *RabbitConsumer) publish(tag string, body []byte) error {
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("msgs get error: %v", err)
+		return fmt.Errorf("publish failed (Producer): %w", err)
 	}
 
 	return nil
@@ -156,21 +125,25 @@ func (r *RabbitConsumer) Run(handler TaskHandler) error {
 	consumChan, err := r.newConsumeChan(r.consumerName)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create consume channel (Run): %w", err)
 	}
 
 	for msg := range consumChan {
 		var vt task.VideoTask
 		err := json.Unmarshal(msg.Body, &vt)
 		if err != nil {
-			log.Printf("error ummarshal in consume: %v\n", err)
+			slog.Error("error unmarshal message in consume", "error", err, "body", string(msg.Body))
+			msg.Nack(false, false) // Отменяем сообщение, если не удалось разобрать
+			continue
 		}
+		slog.Info("message received", "queue", r.consumerName, "body", vt)
+
 		url, err := handler.Execute(vt)
 		if err != nil {
-			log.Printf("error handler in consume: %v\n", err)
+			slog.Error("error execute task", "error", err, "task", vt)
+			msg.Nack(false, false) // Отменяем сообщение, если обработка не удалась
+			continue
 		}
-		// TODO: при ошибке не потвержать, а так же обработку лучше сделать.
-		msg.Ack(false)
 
 		post := task.DBUpload{
 			VideoID:    vt.VideoID,
@@ -181,13 +154,20 @@ func (r *RabbitConsumer) Run(handler TaskHandler) error {
 
 		body, err := json.Marshal(post)
 		if err != nil {
-			log.Printf("error marshal post %s", err)
+			slog.Error("error marshal post", "error", err, "post", post)
+			msg.Nack(false, false) // Отменяем сообщение, если не удалось сериализовать
+			continue
 		}
 
 		err = r.publish(r.producerName, body)
 		if err != nil {
-			log.Printf("error publish post %s", err)
+			slog.Error("error publish message", "error", err, "body", string(body))
+			msg.Nack(false, false) // Отменяем сообщение, если публикация не удалась
+			continue
 		}
+		slog.Info("message published", "body", "queue", r.producerName, string(body))
+
+		msg.Ack(false)
 	}
 
 	return nil

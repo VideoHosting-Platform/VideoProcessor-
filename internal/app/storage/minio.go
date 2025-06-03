@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -26,23 +26,26 @@ type MinioStorage struct {
 	bucket string
 }
 
-func newMinioClient(cfg MinioConfig) *minio.Client {
+func newMinioClient(cfg MinioConfig) (*minio.Client, error) {
 	client, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
-		Secure: false,
+		Secure: cfg.Secure,
 	})
 	if err != nil {
-		log.Fatalln("Ошибка инициализации MinIO:", err)
+		return nil, fmt.Errorf("creating MinIO client: %w", err)
 	}
-	return client
+	return client, nil
 }
 
-func NewMinioStorage(cfg MinioConfig) *MinioStorage {
-	client := newMinioClient(cfg)
+func NewMinioStorage(cfg MinioConfig) (*MinioStorage, error) {
+	client, err := newMinioClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initializing MinIO storage: %w", err)
+	}
 	return &MinioStorage{
 		client: client,
 		bucket: cfg.BucketName,
-	}
+	}, nil
 }
 
 func (ms *MinioStorage) Upload(pathUpload string) (io.WriteCloser, error) {
@@ -51,29 +54,27 @@ func (ms *MinioStorage) Upload(pathUpload string) (io.WriteCloser, error) {
 	bucket, objectName, err := ms.parsePath(pathUpload)
 
 	if err != nil {
-		log.Println("не правильный формат пути видео")
-		return nil, fmt.Errorf("error path video in minio: %w", err)
+		return nil, fmt.Errorf("upload to Minio failed (parsing path):: %w", err)
 	}
-	// Проверяем, есть ли бакет
+
 	if err := ms.createBucketIfNotExists(ctx, bucket); err != nil {
-		log.Println("Ошибка создания бакета:", err)
-		return nil, fmt.Errorf("ошибка создания бакета: %w", err)
+		return nil, fmt.Errorf("upload to Minio failed (bucket check):: %w", err)
 	}
 
 	// Загружаем файл
 	pr, pw := io.Pipe()
 	go func() {
 		defer pr.Close()
-		log.Println("Начало загрузки видео:", bucket, objectName)
+		slog.Info("Начало загрузки видео в MinIO", "bucket", bucket, "objectName", objectName)
 		_, err = ms.client.PutObject(ctx, bucket, objectName, pr, -1, minio.PutObjectOptions{
 			ContentType: "video/mp4",
 		})
 		if err != nil {
 			// TODO: проверить ошибку на EOF?
-			log.Println("Ошибка загрузки видео:", err)
+			slog.Error("Ошибка загрузки видео в MinIO", "bucket", bucket, "objectName", objectName, "error", err)
 			return
 		}
-		log.Println("Загрузка видео завершена:", bucket, objectName)
+		slog.Info("Видео успешно загружено в MinIO", "bucket", bucket, "objectName", objectName)
 	}()
 
 	return pw, nil
@@ -82,38 +83,30 @@ func (ms *MinioStorage) Upload(pathUpload string) (io.WriteCloser, error) {
 func (ms *MinioStorage) Download(pathDownload string) (io.Reader, error) {
 	ctx := context.Background()
 
-	arr := strings.Split(pathDownload, "/")
-	if len(arr) != 2 {
-		log.Println("не правильный формат пути видео")
-		return nil, fmt.Errorf("error path video in minio")
+	bucket, objectName, err := ms.parsePath(pathDownload)
+	if err != nil {
+		return nil, fmt.Errorf("download from Minio failed (parsing path): %w", err)
 	}
 
-	bucket, objectName := arr[0], arr[1]
 	obj, err := ms.client.GetObject(ctx, bucket, objectName, minio.GetObjectOptions{})
-	// err := ms.client.FGetObject(ctx, bucket, objectName, pathLocal, minio.GetObjectOptions{})
 	if err != nil {
-		log.Println("Ошибка скачивания:", err)
-		return nil, err
+		return nil, fmt.Errorf("download from Minio failed (getting object): %w", err)
 	}
-	// log.Printf("Успешно скачано: %s\n", pathLocal)
 
 	return obj, nil
 }
 
 func (ms *MinioStorage) GetPresignedURL(pathDownload string, expiry time.Duration) (string, error) {
 	reqParams := make(url.Values)
-	arr := strings.Split(pathDownload, "/")
-	if len(arr) != 2 {
-		log.Println("не правильный формат пути видео")
-		return "", fmt.Errorf("error path video in minio")
-	}
 
-	bucket, objectName := arr[0], arr[1]
-	//reqParams.Set("response-content-disposition", "attachment; filename=\""+objectName+"\"") // Опционально
+	bucket, objectName, err := ms.parsePath(pathDownload)
+	if err != nil {
+		return "", fmt.Errorf("get presigned URL from Minio failed (parsing path): %w", err)
+	}
 
 	presignedURL, err := ms.client.PresignedGetObject(context.Background(), bucket, objectName, expiry, reqParams)
 	if err != nil {
-		return "", fmt.Errorf("failed to get presigned URL: %w", err)
+		return "", fmt.Errorf("failed to get object (presigned URL): %w", err)
 	}
 	return presignedURL.String(), nil
 }
@@ -121,7 +114,7 @@ func (ms *MinioStorage) GetPresignedURL(pathDownload string, expiry time.Duratio
 func (ms *MinioStorage) parsePath(path string) (string, string, error) {
 	arr := strings.Split(path, "/")
 	if len(arr) < 2 {
-		return "", "", fmt.Errorf("неправильный формат пути видео")
+		return "", "", fmt.Errorf("error path video in minio: %s", path)
 	}
 	bucket := arr[0]
 	objectName := strings.Join(arr[1:], "/")
@@ -131,11 +124,11 @@ func (ms *MinioStorage) parsePath(path string) (string, string, error) {
 func (ms *MinioStorage) createBucketIfNotExists(ctx context.Context, bucket string) error {
 	exists, err := ms.client.BucketExists(ctx, bucket)
 	if err != nil {
-		return fmt.Errorf("ошибка проверки существования бакета: %w", err)
+		return fmt.Errorf("bucket authentication error: %w", err)
 	}
 	if !exists {
 		if err = ms.client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{}); err != nil {
-			return fmt.Errorf("ошибка создания бакета: %w", err)
+			return fmt.Errorf("bucket create error: %w", err)
 		}
 	}
 	return nil

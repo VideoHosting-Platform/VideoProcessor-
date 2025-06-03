@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -15,6 +16,7 @@ import (
 // Временные константы
 const (
 	BUCKET_NAME = "videos"
+	EXPIRY_TIME = 1 * time.Hour // Время жизни presigned URL
 )
 
 type VideoService struct {
@@ -30,17 +32,13 @@ func NewVideoService(st storage.StorageStreamProvider, p task.Processer) *VideoS
 // Сервис выполняет 3 функции, загрузки, обработки, выгрузки видео.
 func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 
-	// localInputPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s_input.mp4", vt.VideoID.String()))
-
 	taskTempDir, err := os.MkdirTemp("", "video-process-")
 	if err != nil {
-		// TODO: Log error
 		return "", fmt.Errorf("failed to create temp dir for task %s: %w", vt.VideoID, err)
 	}
 
 	defer os.RemoveAll(taskTempDir)
 
-	// localInputPath := filepath.Join(taskTempDir, "input.mp4")         // dowloaded dir
 	localOutputPath := filepath.Join(taskTempDir, "processed_output") // processed dir
 
 	if err := os.MkdirAll(localOutputPath, 0755); err != nil {
@@ -49,42 +47,41 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 
 	// Загрузка
 
-	// Предполагается, что в MinIO лежит videoID.mp4
-	// dowloadPath := filepath.Join(BUCKET_NAME, vt.VideoID.String()+".mp4")
-	dowloadPath := filepath.Join(BUCKET_NAME, vt.VideoID.String()+"")
-	fmt.Println("path ", dowloadPath)
-	// err = vs.storage.Download(dowloadPath, localInputPath)
-	url, err := vs.storage.GetPresignedURL(dowloadPath, time.Second*60*60)
+	dowloadPath := filepath.Join(BUCKET_NAME, vt.VideoID.String())
+	url, err := vs.storage.GetPresignedURL(dowloadPath, EXPIRY_TIME)
 	if err != nil {
-		fmt.Printf("error execute %v\n", err)
-		return "", err
+		return "", fmt.Errorf("failed to get presigned URL for %s: %w", dowloadPath, err)
 	}
 
 	//Обработка
 	err = vs.Process(vt, url, localOutputPath)
 	if err != nil {
-		fmt.Printf("error process %v\n", err)
-		return "", err
+		return "", fmt.Errorf("failed to process video %s: %w", vt.VideoID, err)
 	}
 
 	//Выгрузка
 	// 1) Генерируем уникальный ID для этого процесса
 	processID := uuid.New().String()
-	// uploadPrefix = "my-bucket/<processID>"
 	uploadPrefix := fmt.Sprintf("%s/%s", BUCKET_NAME, processID)
 
 	// 2) Рекурсивно ходим по локальной папке LOCAL_DIR
 	err = vs.uploadAllFilesInDir(localOutputPath, uploadPrefix)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to upload files from %s to %s: %w", localOutputPath, uploadPrefix, err)
 	}
 
-	return uploadPrefix, nil
+	// Если нужно возвращать URL, то можно сделать presigned URL для папки
+	url, err = vs.storage.GetPresignedURL(uploadPrefix+"/"+task.MastePLName, EXPIRY_TIME)
+	if err != nil {
+		return "", fmt.Errorf("failed to get presigned URL(in Execute) for %s: %w", uploadPrefix, err)
+	}
+	return url, nil
 
 }
 
 func (vs *VideoService) uploadAllFilesInDir(sourceFolder string, remoteFolderPrefix string) error {
 	err := filepath.Walk(sourceFolder, func(path string, info os.FileInfo, err error) error {
+		slog.Info("uploading file", "path", path, "info", info)
 		if err != nil {
 			return err
 		}
@@ -100,10 +97,6 @@ func (vs *VideoService) uploadAllFilesInDir(sourceFolder string, remoteFolderPre
 		// Собираем путь в бакете: "<bucket>/<processID>/<relPath>"
 		objectPath := filepath.ToSlash(filepath.Join(remoteFolderPrefix, relPath))
 
-		// Выгрузка видео в minio
-		// if err := vs.storage.Upload(path, objectPath); err != nil {
-		// 	return fmt.Errorf("upload %s failed: %w", path, err)
-		// }
 		writer, err := vs.storage.Upload(objectPath)
 		if err != nil {
 			return fmt.Errorf("upload %s failed: %w", path, err)

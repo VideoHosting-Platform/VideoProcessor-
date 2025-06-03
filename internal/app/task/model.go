@@ -14,3 +14,10 @@ type DBUpload struct {
 	VideoTitle string    `json:"video_title"`
 	URL        string    `json:"video_master_playlist_url"`
 }
+
+const (
+	MastePLName            = "master.m3u8"
+	VariantPlaylistPattern = "stream_%v.m3u8"   // Шаблон для плейлистов HLS
+	SegmentPattern         = "segment_%v_%d.ts" // Шаблон для сегментов HLS
+
+)
