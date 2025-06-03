@@ -53,6 +53,7 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 		return "", fmt.Errorf("failed to get presigned URL for %s: %w", dowloadPath, err)
 	}
 
+	slog.Info("Downloading video", "videoID", vt.VideoID, "url", url)
 	//Обработка
 	err = vs.Process(vt, url, localOutputPath)
 	if err != nil {
