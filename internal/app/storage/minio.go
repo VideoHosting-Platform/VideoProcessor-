@@ -38,10 +38,17 @@ func newMinioClient(cfg MinioConfig) (*minio.Client, error) {
 }
 
 func NewMinioStorage(cfg MinioConfig) (*MinioStorage, error) {
+
 	client, err := newMinioClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("initializing MinIO storage: %w", err)
+		return nil, fmt.Errorf("initializing client MinIO error: %w", err)
 	}
+
+	_, err = client.ListBuckets(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("connect to MinIO error : %w", err)
+	}
+
 	return &MinioStorage{
 		client: client,
 		bucket: cfg.BucketName,

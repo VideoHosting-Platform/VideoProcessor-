@@ -14,9 +14,12 @@ spec:
       containers:
         - name: video-processor
           image: valery223344/video_processor:0.0.1
+          envFrom:
+            - configMapRef:
+                name: video-processor-config
+            - secretRef:
+                name: video-processor-secrets
           resources:
             limits:
-              memory: "128Mi"
-              cpu: "500m"
-          # ports:
-          # - containerPort: <Port>
+              memory: "2Gi"
+              cpu: "1000m"
