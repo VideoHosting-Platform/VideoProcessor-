@@ -48,7 +48,12 @@ jobs:
       - name: Configure yc CLI
         run: |
           echo '${{ secrets.YC_SERVICE_ACCOUNT_KEY }}' > key.json
-          jq . key.json || (echo "Invalid JSON in service account key"; exit 1)
+          if ! jq empty key.json >/dev/null 2>&1; then
+            echo "ERROR: Invalid JSON in service account key (details hidden for security)"
+            exit 1
+          else
+            echo "Service account key JSON is valid (content not displayed)"
+          fi
           yc config set service-account-key key.json
           yc config set folder-id $FOLDER_ID
 
@@ -62,8 +67,8 @@ jobs:
         run: |
           yc managed-kubernetes cluster get-credentials $CLUSTER_ID --external
 
-          echo 'RABBITMQ_USER=${{ secrets.RABBITMQ_USER}}' >> .env
-          echo 'RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD}}' >> .env
+          echo 'RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}' >> .env
+          echo 'RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD }}' >> .env
           echo 'MINIO_ACCESS_KEY=minioadmin' >> .env
           echo 'MINIO_SECRET_KEY=minioadmin' >> .env
 
