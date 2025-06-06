@@ -3,8 +3,6 @@ name: Deploy to Yandex Cloud Kubernetes
 on:
   push:
     branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
 
 jobs:
   build-and-deploy:
@@ -68,6 +66,8 @@ jobs:
           echo 'RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD}}' >> .env
           echo 'MINIO_ACCESS_KEY=minioadmin' >> .env
           echo 'MINIO_SECRET_KEY=minioadmin' >> .env
+
+          cat .env
 
           kubectl create secret generic video-processor-secrets --from-env-file=.env
           kubectl apply -f k8s/configMap.yaml
