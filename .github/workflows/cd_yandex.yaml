@@ -62,6 +62,6 @@ jobs:
 
       - name: Deploy to Kubernetes
         run: |
-          kubectl apply -f k8s/configЬap.yaml
+          kubectl apply -f k8s/configMap.yaml
           kubectl apply -f k8s/secret.yaml
           kubectl apply -f k8s/deploy.yaml
