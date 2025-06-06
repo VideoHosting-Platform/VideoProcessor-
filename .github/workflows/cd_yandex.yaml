@@ -41,11 +41,24 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Configure YC Kubernetes access
-        uses: yc-actions/configure-kubernetes@v1
-        with:
-          k8s-connection: ${{ env.CLUSTER_ID }}
-          yc-sa-json-credentials: ${{ secrets.YC_SERVICE_ACCOUNT_KEY }}
+      - name: Install yc CLI
+        run: |
+          # Устанавливаем в домашнюю директорию
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+          echo "$HOME/yandex-cloud/bin" >> $GITHUB_PATH
+
+      - name: Configure yc CLI
+        run: |
+          echo '${{ secrets.YC_SERVICE_ACCOUNT_KEY }}' > key.json
+          jq . key.json || (echo "Invalid JSON in service account key"; exit 1)
+          yc config set service-account-key key.json
+          yc config set folder-id $FOLDER_ID
+
+      - name: Setup kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
 
       - name: Deploy to Kubernetes
         run: |
