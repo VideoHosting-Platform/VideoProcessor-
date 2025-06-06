@@ -72,7 +72,7 @@ func (ms *MinioStorage) Upload(pathUpload string) (io.WriteCloser, error) {
 	pr, pw := io.Pipe()
 	go func() {
 		defer pr.Close()
-		slog.Info("Начало загрузки видео в MinIO", "bucket", bucket, "objectName", objectName)
+		slog.Debug("Начало загрузки видео в MinIO", "bucket", bucket, "objectName", objectName)
 		_, err = ms.client.PutObject(ctx, bucket, objectName, pr, -1, minio.PutObjectOptions{
 			ContentType: "video/mp4",
 		})
@@ -81,7 +81,7 @@ func (ms *MinioStorage) Upload(pathUpload string) (io.WriteCloser, error) {
 			slog.Error("Ошибка загрузки видео в MinIO", "bucket", bucket, "objectName", objectName, "error", err)
 			return
 		}
-		slog.Info("Видео успешно загружено в MinIO", "bucket", bucket, "objectName", objectName)
+		slog.Debug("Видео успешно загружено в MinIO", "bucket", bucket, "objectName", objectName)
 	}()
 
 	return pw, nil

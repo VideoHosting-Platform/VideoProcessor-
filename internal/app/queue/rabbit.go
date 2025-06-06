@@ -3,7 +3,6 @@ package queue
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 
 	"github.com/VideoHosting-Platform/VideoProcessor/internal/app/task"
@@ -12,7 +11,11 @@ import (
 )
 
 type RabbitMQConsumerConfig struct {
-	RabbitMQURL  string `env:"RABBITMQ_URL"`
+	User     string `env:"RABBITMQ_USER"`
+	Password string `env:"RABBITMQ_PASSWORD"`
+	Host     string `env:"RABBITMQ_HOST"`
+	Port     string `env:"RABBITMQ_PORT"`
+
 	ConsumerName string `env:"RABBITMQ_CONSUMER_NAME"`
 	ProducerName string `env:"RABBITMQ_PRODUCER_NAME"`
 }
@@ -27,15 +30,16 @@ type RabbitConsumer struct {
 	producerName string
 }
 
-func failOnError(err error, msg string) {
-	if err != nil {
-		// TODO log
-		log.Fatalf("%s %s", msg, err)
-	}
-}
-
 func NewRabbitMQConsumer(cfg RabbitMQConsumerConfig) (*RabbitConsumer, error) {
-	conn, err := amqp.Dial(cfg.RabbitMQURL)
+	dsn := fmt.Sprintf(
+		"amqp://%s:%s@%s:%s",
+		cfg.User,
+		cfg.Password,
+		cfg.Host,
+		cfg.Port,
+	)
+
+	conn, err := amqp.Dial(dsn)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)

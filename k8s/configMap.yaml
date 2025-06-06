@@ -3,11 +3,13 @@ kind: ConfigMap
 metadata:
   name: video-processor-config
 data:
-  MINIO_ENDPOINT: "minio.minio.svc.cluster.local:9000"
+  MINIO_ENDPOINT: "minio:9000"
   MINIO_BUCKET_NAME: "videos"
 
-  RABBITMQ_URL: "amqp://default_user_-Yi3UrGgKd5YlxGW-g6:t3uu44GFbWqQHmXzfPU-taEr_LGRUZ93@rabbitmq.rabbitmq-system.svc.cluster.local:5672"
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+
   RABBITMQ_CONSUMER_NAME: "video_processing"
   RABBITMQ_PRODUCER_NAME: "db_upload"
 
-  APP_ENV: "prod"
+  APP_ENV: "dev"

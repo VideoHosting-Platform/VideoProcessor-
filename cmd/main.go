@@ -24,6 +24,8 @@ func main() {
 	// 1 Load configuration
 	cfg := config.MustLoadConfig()
 
+	slog.Debug("config loaded", slog.Any("cfg", cfg))
+
 	// 2 TODO Initialize logger
 	logger.Init(logger.Env(cfg.Environment))
 
@@ -46,7 +48,10 @@ func main() {
 
 	// 6 Run queue consumer
 	vs := services.NewVideoService(minioStorage, process)
-	rabbit.Run(vs)
+
+	if err := rabbit.Run(vs); err != nil {
+		slog.Error("Failed to run service", "error", err)
+	}
 
 	// 7 TODO Metrics and helth endpoints
 

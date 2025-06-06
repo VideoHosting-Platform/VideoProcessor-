@@ -12,14 +12,14 @@ spec:
         app: video-processor
     spec:
       containers:
-        - name: video-processor
-          image: valery223344/video_processor:0.0.1
-          envFrom:
-            - configMapRef:
-                name: video-processor-config
-            - secretRef:
-                name: video-processor-secrets
-          resources:
-            limits:
-              memory: "2Gi"
-              cpu: "1000m"
+      - name: video-processor
+        image: valery223344/video_processor:latest
+        envFrom:
+          - configMapRef:
+              name: video-processor-config
+          - secretRef:
+              name: video-processor-secrets
+        resources:
+          limits:
+            memory: "4Gi"
+            cpu: "3000m"
