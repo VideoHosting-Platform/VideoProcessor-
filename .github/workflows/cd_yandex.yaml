@@ -60,6 +60,10 @@ jobs:
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
 
+      - name: Get kubectl configuration for Yandex Cloud k8s cluster
+        run: |
+          yc managed-kubernetes cluster get-credentials --id $CLUSTER_ID --external
+
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -f k8s/configMap.yaml
