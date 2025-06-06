@@ -69,6 +69,7 @@ jobs:
 
           cat .env
 
-          kubectl create secret generic video-processor-secrets --from-env-file=.env
+          kubectl create secret generic video-processor-secrets --from-env-file=.env --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f k8s/configMap.yaml
           kubectl apply -f k8s/deploy.yaml
+          kubectl rollout restart -f k8s/deploy.yaml
