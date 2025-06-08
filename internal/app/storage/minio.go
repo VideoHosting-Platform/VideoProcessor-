@@ -14,7 +14,8 @@ import (
 )
 
 type MinioConfig struct {
-	Endpoint   string `env:"MINIO_ENDPOINT,required"`
+	Host       string `env:"MINIO_HOST,required"`
+	Port       string `env:"MINIO_PORT,required"`
 	BucketName string `env:"MINIO_BUCKET_NAME" envDefault:"my-bucket"`
 	AccessKey  string `env:"MINIO_ACCESS_KEY,required"`
 	SecretKey  string `env:"MINIO_SECRET_KEY,required"`
@@ -27,7 +28,7 @@ type MinioStorage struct {
 }
 
 func newMinioClient(cfg MinioConfig) (*minio.Client, error) {
-	client, err := minio.New(cfg.Endpoint, &minio.Options{
+	client, err := minio.New(cfg.Host+":"+cfg.Port, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
 		Secure: cfg.Secure,
 	})
