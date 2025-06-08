@@ -8,6 +8,8 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     environment: prod
+    env:
+      IMAGE_NAME: video_processor
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -15,10 +17,10 @@ jobs:
       - name: Set up project
         uses: VideoHosting-Platform/actions/.github/actions/setup-and-deploy@main
         with:
-          registry: 'docker.io'
-          image_name: '${{ secrets.DOCKERHUB_USERNAME }}/upload-service'
-          folder_id: 'b1gq90lppq2qo7ofbuhb'
-          cluster_id: 'mk8s-cluster'
+          registry: "docker.io"
+          image_name: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}"
+          folder_id: "b1gq90lppq2qo7ofbuhb"
+          cluster_id: "mk8s-cluster"
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
           yc_service_account_key: ${{ secrets.YC_SERVICE_ACCOUNT_KEY }}
