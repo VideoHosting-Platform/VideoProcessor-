@@ -3,6 +3,9 @@ package logger
 import (
 	"log/slog"
 	"os"
+	"time"
+
+	"github.com/lmittmann/tint"
 )
 
 type Env string
@@ -18,11 +21,25 @@ func Init(env Env) {
 
 	switch env {
 	case EnvLocal:
-		logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		logger = slog.New(
+			tint.NewHandler(os.Stdout, &tint.Options{
+				Level:      slog.LevelDebug,
+				TimeFormat: time.Kitchen, // 3:04PM вместо длинной даты
+				AddSource:  true,         // Показывать файл:строку
+				NoColor:    false,        // Цвета в консоли
+			}),
+		)
 	case EnvDev:
-		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		// JSON для dev окружения, но с отладкой
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level:     slog.LevelDebug,
+			AddSource: true,
+		}))
 	case EnvProd:
-		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+		// Компактный JSON для продакшена
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		}))
 	default:
 		panic("unknown environment: " + string(env))
 	}

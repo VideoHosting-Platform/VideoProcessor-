@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"log/slog"
 	"os"
 
@@ -18,16 +19,18 @@ func main() {
 	// Загружаем переменные среды из файла .env
 	// Если файл не найден, используем переменные среды системы
 	if err := godotenv.Load(); err != nil {
-		slog.Info("No .env file found, using system environment variables", "error", err)
+		log.Println("No .env file found, using system environment variables", "error", err)
 	}
 
 	// 1 Load configuration
 	cfg := config.MustLoadConfig()
 
-	slog.Debug("config loaded", slog.Any("cfg", cfg))
+	log.Println("Configuration loaded successfully", "environment", cfg.Environment)
 
 	// 2 TODO Initialize logger
 	logger.Init(logger.Env(cfg.Environment))
+
+	slog.Info("Logger initialized", "environment", cfg.Environment)
 
 	// 3 Initialize queue connection
 	rabbit, err := queue.NewRabbitMQConsumer(cfg.RabbitMQ)
@@ -36,6 +39,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	slog.Info("RabbitMQ consumer initialized", "consumerName", cfg.RabbitMQ.ConsumerName, "producerName", cfg.RabbitMQ.ProducerName)
+
 	// 4 Initialize video storage connection
 	minioStorage, err := storage.NewMinioStorage(cfg.MinIO)
 	if err != nil {
@@ -43,12 +48,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	slog.Info("MinIO storage initialized", "endpoint", cfg.MinIO.Host, "bucket", cfg.MinIO.Port, "bucketName", cfg.MinIO.BucketName)
+
 	// 5 Initialize processor
 	process := task.NewVideoProcess()
 
 	// 6 Run queue consumer
 	vs := services.NewVideoService(minioStorage, process)
 
+	slog.Info("Video service initialized and ready to run")
 	if err := rabbit.Run(vs); err != nil {
 		slog.Error("Failed to run service", "error", err)
 	}
