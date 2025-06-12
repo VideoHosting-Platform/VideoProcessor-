@@ -57,21 +57,8 @@ func (r *RabbitConsumer) newConsumeChan(tag string) (<-chan amqp.Delivery, error
 		return nil, fmt.Errorf("failed create channel (Consumer) %w", err)
 	}
 
-	q, err := ch.QueueDeclare(
-		tag,
-		false, // durable
-		false, // delete when unused
-		false, // exclusive
-		false, // no-wait
-		nil,   // arguments
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("queue deckareted failed: %w", err)
-	}
-
 	msgs, err := ch.Consume(
-		q.Name,
+		r.consumerName,
 		"",
 		false,
 		false,
@@ -93,22 +80,9 @@ func (r *RabbitConsumer) publish(name string, body []byte) error {
 		return fmt.Errorf("failed create channel (Producer) %w", err)
 	}
 
-	q, err := ch.QueueDeclare(
-		name,
-		false, // durable
-		false, // delete when unused
-		false, // exclusive
-		false, // no-wait
-		nil,   // arguments
-	)
-
-	if err != nil {
-		return fmt.Errorf("queue deckareted error (Producer): %w", err)
-	}
-
 	err = ch.Publish(
 		"",
-		q.Name,
+		r.producerName,
 		false,
 		false,
 		amqp.Publishing{

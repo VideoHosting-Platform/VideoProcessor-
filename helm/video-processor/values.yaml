@@ -1,0 +1,31 @@
+replicaCount: 1
+
+appEnv: dev
+
+minio:
+  host: video-hosting-minio
+  port: 9000
+  bucket: videos
+  accessKey: minioadmin
+  secretKey: minioadmin
+
+rabbitmq:
+  host: video-hosting-rabbitmq
+  port: 5672
+  consumerName: video_processing
+  producerName: db_upload
+  user: user
+  password: password
+
+image:
+  repository: valery223344/video_processor
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 3Gi

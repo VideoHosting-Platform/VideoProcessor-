@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-video-processor-deployment
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: video-processor
+  template:
+    metadata:
+      labels:
+        app: video-processor
+    spec:
+      containers:
+      - name: video-processor
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag}}
+        envFrom:
+          - configMapRef:
+              name: {{ .Release.Name }}-video-processor-config
+          - secretRef:
+              name: {{ .Release.Name }}-video-processor-secrets
+        resources:
+          limits:
+            memory: "{{ .Values.resources.limits.memory}}"
+            cpu: "{{ .Values.resources.limits.cpu}}"
