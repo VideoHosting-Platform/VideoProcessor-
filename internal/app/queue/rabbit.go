@@ -42,7 +42,7 @@ func NewRabbitMQConsumer(cfg RabbitMQConsumerConfig) (*RabbitConsumer, error) {
 	conn, err := amqp.Dial(dsn)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+		return nil, fmt.Errorf("failed to connect to RabbitMQ: %s %w", dsn, err)
 	}
 
 	return &RabbitConsumer{Conn: conn,
@@ -52,11 +52,16 @@ func NewRabbitMQConsumer(cfg RabbitMQConsumerConfig) (*RabbitConsumer, error) {
 }
 
 func (r *RabbitConsumer) newConsumeChan(tag string) (<-chan amqp.Delivery, error) {
+
+	logger := slog.With("queue", tag)
+
+	logger.Info("declaring channel")
 	ch, err := r.Conn.Channel()
 	if err != nil {
 		return nil, fmt.Errorf("failed create channel (Consumer) %w", err)
 	}
 
+	logger.Info("channel declared")
 	msgs, err := ch.Consume(
 		r.consumerName,
 		"",
@@ -69,6 +74,8 @@ func (r *RabbitConsumer) newConsumeChan(tag string) (<-chan amqp.Delivery, error
 	if err != nil {
 		return nil, fmt.Errorf("failed get queued dilivery (Consumer) %w", err)
 	}
+
+	logger.Info("consume channel created", "queue", r.consumerName, "messages", len(msgs))
 
 	return msgs, nil
 
@@ -105,8 +112,10 @@ func (r *RabbitConsumer) Run(handler TaskHandler) error {
 	if err != nil {
 		return fmt.Errorf("failed to create consume channel (Run): %w", err)
 	}
+	slog.Info("RabbitMQ consumer started", "queue", r.consumerName, "producer", r.producerName)
 
 	for msg := range consumChan {
+
 		var vt task.VideoTask
 		err := json.Unmarshal(msg.Body, &vt)
 		if err != nil {
@@ -114,6 +123,7 @@ func (r *RabbitConsumer) Run(handler TaskHandler) error {
 			msg.Nack(false, false) // Отменяем сообщение, если не удалось разобрать
 			continue
 		}
+
 		slog.Info("message received", "queue", r.consumerName, "body", vt)
 
 		url, err := handler.Execute(vt)
@@ -122,6 +132,7 @@ func (r *RabbitConsumer) Run(handler TaskHandler) error {
 			msg.Nack(false, false) // Отменяем сообщение, если обработка не удалась
 			continue
 		}
+		slog.Info("task executed successfully", "UserID", vt.UserID, "VideoID", vt.VideoID, "VideoTitle", vt.VideoTitle, "outputURL", url)
 
 		post := task.DBUpload{
 			VideoID:    vt.VideoID,
@@ -146,7 +157,10 @@ func (r *RabbitConsumer) Run(handler TaskHandler) error {
 		slog.Info("message published", "body", "queue", r.producerName, string(body))
 
 		msg.Ack(false)
+		slog.Info("message acknowledged", "queue", r.consumerName, "body", string(msg.Body))
 	}
+
+	slog.Info("RabbitMQ consumer stopped", "queue", r.consumerName, "producer", r.producerName)
 
 	return nil
 }

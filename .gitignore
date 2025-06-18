@@ -5,7 +5,7 @@ videos/
 a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
 a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
 .idea
-.env
+.env*
 
 
 test_minio.go

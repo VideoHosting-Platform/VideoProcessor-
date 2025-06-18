@@ -38,11 +38,14 @@ type Quality struct {
 // Он принимает VideoTask, URL видео и директорию для сохранения обработанного видео.
 // Внутри он проверяет и генерирует доступные качества, а затем создает HLS-плейлисты и сегменты.
 func (vh *VideoProcess) Process(t VideoTask, videoURL string, outputDir string) error {
+
 	// Получаем доступные качества видео
 	q, err := vh.checkAndGenerateQualities(videoURL)
 	if err != nil {
 		return fmt.Errorf("error get Qualities for video (Process): %w", err)
 	}
+
+	slog.Debug("Сгенерированные качества", "qualities", q)
 
 	err = vh.generateHLS(videoURL, outputDir, q)
 	if err != nil {
@@ -66,8 +69,6 @@ func (vh *VideoProcess) checkAndGenerateQualities(videoURL string) ([]Quality, e
 	if len(qualities) == 0 {
 		return nil, fmt.Errorf("не удалось сгенерировать доступные качества для видео %s", videoURL)
 	}
-
-	slog.Debug("Сгенерированные качества", "qualities", qualities)
 
 	return qualities, nil
 }
@@ -129,9 +130,11 @@ func (vh *VideoProcess) getVideoMetadata(videoURL string) (VideoMetadata, error)
 	//	  Сначала пробуем взять из meta.Format.BitRate, если там пусто — берем из видеопотока.
 	rawBitrate := meta.Format.BitRate
 	if rawBitrate == "" {
+		slog.Debug("Пустой битрейт в формате, берем из видеопотока")
 		rawBitrate = vidStream.BitRate
 	}
 	if rawBitrate == "" {
+		slog.Debug("Пустой битрейт в видеопотоке, устанавливаем битрейт в 0")
 		return VideoMetadata{
 			Width:         vidStream.Width,
 			Height:        vidStream.Height,
@@ -196,6 +199,13 @@ func (vh *VideoProcess) autoConfig(meta VideoMetadata) []Quality {
 // с помощью ffmpeg-go.
 // Он принимает URL входного видео, директорию для сохранения выходных файлов и срез качеств.
 func (vh *VideoProcess) generateHLS(inputURL string, outputDir string, qualities []Quality) error {
+	logger := slog.With(
+		"method", "generateHLS",
+		"inputURL", inputURL,
+		"outputDir", outputDir,
+		"qualities", qualities,
+	)
+	logger.Debug("Начинаем генерацию HLS")
 	// TODO: сделать аудио динамическим
 	//   Сейчас аудио кодек и аудио_битрейт жестко прописаны.
 	n := len(qualities)
@@ -227,7 +237,7 @@ func (vh *VideoProcess) generateHLS(inputURL string, outputDir string, qualities
 		strings.Join(audioLabels, ""),
 	)
 
-	slog.Debug("filter_complex", "value", filterComplex)
+	logger.Debug("filter_complex", "value", filterComplex)
 
 	// Map
 	mapLabels := make([]string, n)
@@ -237,7 +247,7 @@ func (vh *VideoProcess) generateHLS(inputURL string, outputDir string, qualities
 	}
 	// mapLabels = append(mapLabels, "0:a")
 
-	slog.Debug("mapLabels", "value", mapLabels)
+	logger.Debug("mapLabels", "value", mapLabels)
 
 	// Формируем сами KwArgs:
 	args := ffmpeg_go.KwArgs{
@@ -249,7 +259,7 @@ func (vh *VideoProcess) generateHLS(inputURL string, outputDir string, qualities
 		"hls_playlist_type":    "vod",
 	}
 
-	slog.Debug("args", "value", args)
+	logger.Debug("ffmpeg", "args", args)
 
 	for i, q := range qualities {
 		// Video кодек для каждого качества.
@@ -288,7 +298,7 @@ func (vh *VideoProcess) generateHLS(inputURL string, outputDir string, qualities
 			variantPlaylistPattern,
 			args,
 		).WithErrorOutput(&slogWriter{level: slog.LevelDebug}).
-		WithOutput(&slogWriter{level: slog.LevelDebug}).Silent(true)
+		WithOutput(&slogWriter{level: slog.LevelDebug})
 	if err := proc.Run(); err != nil {
 		return fmt.Errorf("ffmpeg execution failed: %w", err)
 	}
