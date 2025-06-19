@@ -1,0 +1,29 @@
+name: Deploy to Yandex Cloud Kubernetes
+
+on: push
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up project
+        uses: VideoHosting-Platform/actions/.github/actions/setup-and-deploy@main
+        with:
+          registry: 'docker.io'
+          image_name: '${{ secrets.DOCKERHUB_USERNAME }}/video_processor'
+          folder_id: '${{ secrets.FOLDER_ID }}'
+          cluster_id: '${{ secrets.CLUSTER_ID }}'
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          yc_service_account_key: ${{ secrets.YC_SERVICE_ACCOUNT_KEY }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          helm upgrade video-hosting \
+            oci://ghcr.io/redblood-pixel/charts/video-hosting-stack \
+            --reuse-values \
+            --set 'videoProcessor.image.tag=${{ github.sha }}'

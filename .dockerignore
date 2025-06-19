@@ -1,0 +1,5 @@
+.env
+.env_example
+scripts/
+test_minio.go
+test_s3.go

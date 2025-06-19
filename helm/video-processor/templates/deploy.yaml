@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-video-processor-deployment
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: video-processor
+  template:
+    metadata:
+      labels:
+        app: video-processor
+    spec:
+      initContainers:
+      - name: wait-for-minio
+        image: minio/mc:latest
+        env:
+          - name: MINIO_SERVER
+            value: http://{{ .Values.minio.host}}:{{ .Values.minio.port }}
+          - name: MINIO_ACCESS_KEY
+            value: {{ .Values.minio.accessKey }}
+          - name: MINIO_SECRET_KEY
+            value: {{ .Values.minio.secretKey }}
+        command: ['sh', '-c', 'until mc alias set minio-local $MINIO_SERVER $MINIO_ACCESS_KEY $MINIO_SECRET_KEY; do echo "Waiting for MinIO to be ready..."; sleep 5; done']
+      - name: check-rabbitmq
+        image: busybox
+        env:
+          - name: RABBITMQ_HOST
+            value: {{ .Values.rabbitmq.host}}
+          - name: RABBITMQ_USER
+            value: {{ .Values.rabbitmq.user }}
+          - name: RABBITMQ_PASSWORD
+            value: {{ .Values.rabbitmq.password }}
+        command: ['sh', '-c', 'until wget http://$RABBITMQ_USER:$RABBITMQ_PASSWORD@$RABBITMQ_HOST:15672/api/aliveness-test/%2F; do echo waiting; sleep 5; done;']
+      containers:
+      - name: video-processor
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag}}
+        envFrom:
+          - configMapRef:
+              name: {{ .Release.Name }}-video-processor-config
+          - secretRef:
+              name: {{ .Release.Name }}-video-processor-secrets
+        resources:
+          limits:
+            memory: "{{ .Values.resources.limits.memory}}"
+            cpu: "{{ .Values.resources.limits.cpu}}"

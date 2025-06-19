@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: video-processor-deployment
+spec:
+  selector:
+    matchLabels:
+      app: video-processor
+  template:
+    metadata:
+      labels:
+        app: video-processor
+    spec:
+      containers:
+      - name: video-processor
+        image: valery223344/video_processor:latest
+        envFrom:
+          - configMapRef:
+              name: video-processor-config
+          - secretRef:
+              name: video-processor-secrets
+        resources:
+          limits:
+            memory: "3Gi"
+            cpu: "1500m"

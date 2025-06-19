@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-video-processor-config
+data:
+  MINIO_HOST: "{{ .Values.minio.host }}"
+  MINIO_PORT: "{{ .Values.minio.port }}"
+  MINIO_BUCKET_NAME: "{{ .Values.minio.bucket }}"
+
+  RABBITMQ_HOST: "{{ .Values.rabbitmq.host }}"
+  RABBITMQ_PORT: "{{ .Values.rabbitmq.port }}"
+
+  RABBITMQ_CONSUMER_NAME: "{{ .Values.rabbitmq.consumerName }}"
+  RABBITMQ_PRODUCER_NAME: "{{ .Values.rabbitmq.producerName }}"
+
+  APP_ENV: "{{ .Values.appEnv }}"
