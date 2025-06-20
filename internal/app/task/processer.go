@@ -15,6 +15,20 @@ import (
 const MaxBitrateKbps = 5000 // Максимальный битрейт в кбит/с
 const AVC = "libx264"       // Кодек для видео
 const AAC = "aac"           // Кодек для аудио
+var availableQualities = []struct {
+	w    int
+	h    int
+	name string
+}{
+	{3840, 2160, "2160p"}, // 4K UHD
+	{2560, 1440, "1440p"}, // 2K QHD
+	{1920, 1080, "1080p"}, // Full HD
+	{1280, 720, "720p"},   // HD
+	{854, 480, "480p"},    // SD
+	{640, 360, "360p"},    // SD
+	{426, 240, "240p"},    // Low
+	{256, 144, "144p"},    // Very low
+}
 
 type Processer interface {
 	Process(t VideoTask, videoURL string, outputDir string) error
@@ -176,7 +190,7 @@ func (vh *VideoProcess) autoConfig(meta VideoMetadata) []Quality {
 		h    int
 		name string
 	}{
-		{1920, 1080, "1080p"}, {1280, 720, "720p"}, {854, 480, "480p"}, {640, 360, "360p"}, // TODO: тут можно и битрейт сделать динамическим
+		availableQualities
 	} {
 		if res.h > maxHeightVideo {
 			continue
