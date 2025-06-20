@@ -185,13 +185,7 @@ func (vh *VideoProcess) autoConfig(meta VideoMetadata) []Quality {
 
 	// Генерируем профили
 	var profiles []Quality
-	for _, res := range []struct {
-		w    int
-		h    int
-		name string
-	}{
-		availableQualities
-	} {
+	for _, res := range availableQualities {
 		if res.h > maxHeightVideo {
 			continue
 		}
