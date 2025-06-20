@@ -87,11 +87,8 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 
 	logger.Info("All files uploaded successfully", "uploadPrefix", uploadPrefix)
 
-	// Если нужно возвращать URL, то можно сделать presigned URL для папки
-	url, err = vs.storage.GetPresignedURL(uploadPrefix+"/"+task.MastePLName, EXPIRY_TIME)
-	if err != nil {
-		return "", fmt.Errorf("failed to get presigned URL(in Execute) for %s: %w", uploadPrefix, err)
-	}
+	// Возвращаем не presigned url, а url вида /{bucketName}/{videoID}/{masterPlaylistName}
+	url = "/" + uploadPrefix + "/" + task.MastePLName
 	return url, nil
 
 }
