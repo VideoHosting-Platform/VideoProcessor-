@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/VideoHosting-Platform/VideoProcessor/internal/app/task"
+	"github.com/google/uuid"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -21,7 +22,7 @@ type RabbitMQConsumerConfig struct {
 }
 
 type TaskHandler interface {
-	Execute(t task.VideoTask) (string, error)
+	Execute(t task.VideoTask) (string, string, error)
 }
 
 type RabbitConsumer struct {
@@ -126,7 +127,7 @@ func (r *RabbitConsumer) Run(handler TaskHandler) error {
 
 		slog.Info("message received", "queue", r.consumerName, "body", vt)
 
-		url, err := handler.Execute(vt)
+		url, processID, err := handler.Execute(vt)
 		if err != nil {
 			slog.Error("error execute task", "error", err, "task", vt)
 			msg.Nack(false, false) // Отменяем сообщение, если обработка не удалась
@@ -134,8 +135,9 @@ func (r *RabbitConsumer) Run(handler TaskHandler) error {
 		}
 		slog.Info("task executed successfully", "UserID", vt.UserID, "VideoID", vt.VideoID, "VideoTitle", vt.VideoTitle, "outputURL", url)
 
+		processIDuuid, _ := uuid.Parse(processID)
 		post := task.DBUpload{
-			VideoID:    vt.VideoID,
+			VideoID:    processIDuuid,
 			UserID:     vt.UserID,
 			VideoTitle: vt.VideoTitle,
 			URL:        url,
