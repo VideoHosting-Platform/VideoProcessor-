@@ -11,14 +11,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up project
-        uses: VideoHosting-Platform/actions/.github/actions/setup-and-deploy@main
+        uses: VideoHosting-Platform/actions/.github/actions/setup-and-deploy@update/action
         with:
-          registry: 'docker.io'
-          image_name: '${{ secrets.DOCKERHUB_USERNAME }}/video_processor'
+          registry: 'ghcr.io'
           folder_id: '${{ secrets.FOLDER_ID }}'
           cluster_id: '${{ secrets.CLUSTER_ID }}'
-          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          token: ${{ secrets.TOKEN }}
           yc_service_account_key: ${{ secrets.YC_SERVICE_ACCOUNT_KEY }}
 
       - name: Deploy to Kubernetes
