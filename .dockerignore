@@ -3,3 +3,7 @@
 scripts/
 test_minio.go
 test_s3.go
+*.tgz
+helm/*
+.github/*
+k8s/*

@@ -22,6 +22,6 @@ jobs:
       - name: Deploy to Kubernetes
         run: |
           helm upgrade video-hosting \
-            oci://ghcr.io/redblood-pixel/charts/video-hosting-stack \
+            oci://ghcr.io/video-hosting-platform/charts/video-hosting-stack \
             --reuse-values \
             --set 'videoProcessor.image.tag=${{ github.sha }}'

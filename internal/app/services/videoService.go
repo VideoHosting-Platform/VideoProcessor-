@@ -30,7 +30,7 @@ func NewVideoService(st storage.StorageStreamProvider, p task.Processer) *VideoS
 }
 
 // Сервис выполняет 3 функции, загрузки, обработки, выгрузки видео.
-func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
+func (vs *VideoService) Execute(vt task.VideoTask) (string, string, error) {
 	processID := uuid.New().String()
 	logger := slog.Default().With(
 		"component", "VideoService",
@@ -44,7 +44,7 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 	taskTempDir, err := os.MkdirTemp("", "video-process-")
 
 	if err != nil {
-		return "", fmt.Errorf("failed to create temp dir for task %s: %w", vt.VideoID, err)
+		return "", processID, fmt.Errorf("failed to create temp dir for task %s: %w", vt.VideoID, err)
 	}
 
 	logger.Debug("Created temporary directory for task", "tempDir", taskTempDir)
@@ -55,7 +55,7 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 	localOutputPath := filepath.Join(taskTempDir, "processed_output") // processed dir
 
 	if err := os.MkdirAll(localOutputPath, 0755); err != nil {
-		return "", fmt.Errorf("failed to create output temp subdir for task %s: %w", vt.VideoID, err)
+		return "", processID, fmt.Errorf("failed to create output temp subdir for task %s: %w", vt.VideoID, err)
 	}
 
 	// Загрузка
@@ -63,7 +63,7 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 	downloadPath := filepath.Join(BUCKET_NAME, vt.VideoID.String())
 	url, err := vs.storage.GetPresignedURL(downloadPath, EXPIRY_TIME)
 	if err != nil {
-		return "", fmt.Errorf("failed to get presigned URL for %s: %w", downloadPath, err)
+		return "", processID, fmt.Errorf("failed to get presigned URL for %s: %w", downloadPath, err)
 	}
 
 	logger.Info("Presigned URL for download", "download_path", downloadPath)
@@ -71,7 +71,7 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 	//Обработка
 	err = vs.Process(vt, url, localOutputPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to process video %s: %w", vt.VideoID, err)
+		return "", processID, fmt.Errorf("failed to process video %s: %w", vt.VideoID, err)
 	}
 
 	//Выгрузка
@@ -82,17 +82,14 @@ func (vs *VideoService) Execute(vt task.VideoTask) (string, error) {
 	logger.Info("Uploading processed files", "localOutputPath", localOutputPath, "uploadPrefix", uploadPrefix)
 	err = vs.uploadAllFilesInDir(localOutputPath, uploadPrefix, logger)
 	if err != nil {
-		return "", fmt.Errorf("failed to upload files from %s to %s: %w", localOutputPath, uploadPrefix, err)
+		return "", processID, fmt.Errorf("failed to upload files from %s to %s: %w", localOutputPath, uploadPrefix, err)
 	}
 
 	logger.Info("All files uploaded successfully", "uploadPrefix", uploadPrefix)
 
-	// Если нужно возвращать URL, то можно сделать presigned URL для папки
-	url, err = vs.storage.GetPresignedURL(uploadPrefix+"/"+task.MastePLName, EXPIRY_TIME)
-	if err != nil {
-		return "", fmt.Errorf("failed to get presigned URL(in Execute) for %s: %w", uploadPrefix, err)
-	}
-	return url, nil
+	// Возвращаем не presigned url, а url вида /{bucketName}/{videoID}/{masterPlaylistName}
+	url = "/" + uploadPrefix + "/" + task.MastePLName
+	return url, processID, nil
 
 }
 
